@@ -72,28 +72,28 @@ TsNucleus::~TsNucleus()
 {}
 
 
-G4VPhysicalVolume* TsNucleus::Construct()
+G4VPhysicalVolume* TsNucleus::Construct() // 构造细胞核几何体
 {
 	BeginConstruction();
 
-	// User defined parameters.
-	// Specify the radius of the nucleus
+	// User defined parameters. 获取用户自定的参数
+	// Specify the radius of the nucleus 获取用户定义的细胞核半径
 	fNucleusRadius = fPm->GetDoubleParameter(GetFullParmName("NucleusRadius"),"Length");
 
-	// Specify how many chromatin fiber loops (Hilbert Curve) to put in a voxel
+	// Specify how many chromatin fiber loops (Hilbert Curve) to put in a voxel 获取用户定义的 Hilbert 曲线层数，决定了染色质纤维如何填充一个体素。
 	fHilbertCurveLayer = fPm->GetIntegerParameter(GetFullParmName("HilbertCurveLayer"));
-	// Specify how many voxels to put in X/Y/Z directions
+	// Specify how many voxels to put in X/Y/Z directions 获取在 X/Y/Z 方向上重复多少次体素。
 	fHilbertCurve3DRepeat = fPm->GetIntegerParameter(GetFullParmName("HilbertCurve3DRepeat"));
 
-	// Specify the file needed to build the hilbert filling curve
+	// Specify the file needed to build the hilbert filling curve 用户指定的 Hilbert 曲线数据文件名。
 	G4String HilbertCurveFileName = fPm->GetStringParameter(GetFullParmName("HilbertCurveFileName"));
 
 	fCheckOverlap = false;
-	if (fPm->ParameterExists(GetFullParmName("fCheckOverlap")))
+	if (fPm->ParameterExists(GetFullParmName("fCheckOverlap"))) // 是否启用重叠检查
 	  fCheckOverlap = fPm->GetBooleanParameter(GetFullParmName("fCheckOverlap"));
 
 	fFillCylindersWithDNA = true;
-	if (fPm->ParameterExists(GetFullParmName("FillCylindersWithDNA")))
+	if (fPm->ParameterExists(GetFullParmName("FillCylindersWithDNA"))) // 是否在圆柱体中填充DNA模型
 	  fFillCylindersWithDNA = fPm->GetBooleanParameter(GetFullParmName("FillCylindersWithDNA"));
 
 	fAddHistones = true;
@@ -152,11 +152,54 @@ G4VPhysicalVolume* TsNucleus::Construct()
 	fRotateNucleusForEachRun = false;
 	if (fPm->ParameterExists(GetFullParmName("RotateNucleusForEachRun")))
 		fRotateNucleusForEachRun = fPm->GetBooleanParameter(GetFullParmName("RotateNucleusForEachRun"));
+	
+	HLX = fPm->GetDoubleParameter(GetFullParmName("Container_HLX"), "Length");
+    HLY = fPm->GetDoubleParameter(GetFullParmName("Container_HLY"), "Length");
+    HLZ = fPm->GetDoubleParameter(GetFullParmName("Container_HLZ"), "Length");
+	NbOfCells  = fPm->GetIntegerParameter(GetFullParmName("NumberOfCells"));
 
-	// Nucleus Orb
+	// 初始化最外面的Box
+	G4Box* gBox = new G4Box(fName, HLX, HLY, HLZ);
+	fEnvelopeLog = CreateLogicalVolume(gBox);
+	fEnvelopePhys = CreatePhysicalVolume(fEnvelopeLog);
+
+	int numCellsX = static_cast<int>(2 * HLX / (2 * fNucleusRadius)); // X方向能容纳多少个细胞核
+    int numCellsY = static_cast<int>(2 * HLY / (2 * fNucleusRadius)); // Y方向能容纳多少个细胞核
+    int numCellsZ = static_cast<int>(2 * HLZ / (2 * fNucleusRadius)); // Z方向能容纳多少个细胞核
+
+	int cellCount = 0;
+
+	for (int i = 0; i < numCellsX && cellCount < NbOfCells; i++) {
+		for (int j = 0; j < numCellsX && cellCount < NbOfCells; j++) {
+			for (int k = 0; k < numCellsX && cellCount < NbOfCells; k++) {
+				G4double x = -HLX + fNucleusRadius + i * 2 * fNucleusRadius;
+                G4double y = -HLY + fNucleusRadius + j * 2 * fNucleusRadius;
+                G4double z = -HLZ + fNucleusRadius + k * 2 * fNucleusRadius;
+
+				G4ThreeVector* position = new G4ThreeVector(x, y, z);
+                G4ThreeVector* posNucl = new G4ThreeVector(0 * mm, 0 * mm, 0 * mm);
+                
+                G4RotationMatrix* rotm = new G4RotationMatrix();
+				// 放置单个细胞核的信息
+				BuildNuclues(HilbertCurveFileName, cellCount, rotm, position); 
+
+				cellCount++;
+			}
+		}
+	}
+
+	InstantiateChildren(fEnvelopePhys);
+	
+	return fEnvelopePhys; // 返回构建的物理体
+}
+
+void TsNucleus::BuildNuclues(G4String HilbertCurveFileName, int cellCount, G4RotationMatrix* rotm, G4ThreeVector* position)
+{
+	// Nucleus Orb 构建细胞核外壳
+	// todo:几何模型这部分后续需要变更
 	G4Orb * Nucleus_solid = new G4Orb("Nucleus", fNucleusRadius);
-	fEnvelopeLog		   = CreateLogicalVolume(Nucleus_solid);
-	fEnvelopePhys		  = CreatePhysicalVolume(fEnvelopeLog);
+	G4LogicalVolume* lNucleus = CreateLogicalVolume("Nucleus", Nucleus_solid); // todo:这里要发生变化
+	G4VPhysicalVolume* pNucleus = CreatePhysicalVolume("Nucleus", cellCount, true, lNucleus, rotm, position, fEnvelopePhys);
 	G4Colour blue (0.0, 0.0, 1.0) ;
 	G4VisAttributes* Vis   = new G4VisAttributes( blue );
 	Vis->SetVisibility(fShowNucleus);
@@ -165,6 +208,7 @@ G4VPhysicalVolume* TsNucleus::Construct()
 	//****************************************************************************
 	//					 Read  Hilbert space filling  data					//
 	//****************************************************************************
+	// 读取Hilbert曲线数据，这个数据由用户提供
 	const char* filename = HilbertCurveFileName;
 	std::ifstream Hfile(filename, std::ios::in);
 	G4double x, y, z;
@@ -188,6 +232,7 @@ G4VPhysicalVolume* TsNucleus::Construct()
 	//							   Set geometry size						  //
 	//****************************************************************************
 	
+	//计算几何尺寸
 	G4double FiberEnvelopeRadius = fFiberRadius;	//Fiber radius
 	G4double FiberEnvelopeLength = fFiberLength;
 	G4double HilbertPointDistance = 40*nm+FiberEnvelopeLength;
@@ -220,7 +265,7 @@ G4VPhysicalVolume* TsNucleus::Construct()
 	//****************************************************************************
 	SetBasicInfo();
 
-	////----- Create parameterization and set
+	////----- Create parameterization and set 设置体素参数
 	param = new TsVoxelParameterisation(fPm);
 	param->SetVoxelDimensions( fVoxelLength/2, fVoxelLength/2, fVoxelLength/2 ); 
 	param->SetNoVoxel( fHilbertCurve3DRepeat, fHilbertCurve3DRepeat, fHilbertCurve3DRepeat ); 
@@ -230,12 +275,13 @@ G4VPhysicalVolume* TsNucleus::Construct()
 	//							 Build basic geometry						 //
 	//****************************************************************************
 	// Fiber Envelope
+	// todo：这里有fiberlogic放置的代码
 	G4double length = std::sqrt( pow(fiberPosX[2]-fiberPosX[1],2) + pow(fiberPosY[2]-fiberPosY[1],2) + pow(fiberPosZ[2]-fiberPosZ[1],2));
 	G4double scaleFactor = HilbertPointDistance/length; // scaleFactor used to get fiber lengths
 	length = scaleFactor*length;
 
 	fNumberOfBasePairs = 0;
-	// Logic volume of fiber
+	// Logic volume of fiber，创建染色质纤维的逻辑体
 	fFiberLogic = ConstructFiberLogicalVolume();
 //	G4VisAttributes* FiberEnvelopeVis = new G4VisAttributes( blue ); //
 //	FiberEnvelopeVis->SetVisibility(true);
@@ -246,6 +292,7 @@ G4VPhysicalVolume* TsNucleus::Construct()
 	//****************************************************************************
 	//					   Build Hilbert loop geometry						//
 	//****************************************************************************
+	// 生成Hilbert曲线并放置纤维
 	G4int maxSize = fHilbertCurveLayer*TotalPoints*(G4int)pow(fHilbertCurve3DRepeat,3);
 	fFiberPhysVolLoop.resize(maxSize);
 
@@ -299,7 +346,7 @@ G4VPhysicalVolume* TsNucleus::Construct()
 														midpoint,	   //translation
 														voxel_logic);   // mother logical volume
 
-			if(fCheckOverlap)
+			if(fCheckOverlap) // 检查几何重叠
 			{
 				G4cout<<"checking CountFibers="<<CountFibers<<G4endl;
 				if( fFiberPhysVolLoop[CountFibers]->CheckOverlaps(1000, 0, false))
@@ -323,7 +370,7 @@ G4VPhysicalVolume* TsNucleus::Construct()
 	fNumberOfBasePairs = basePairsInVoxel * fnVoxels;
 	G4cout << "DNA Construction done. Number of total base pairs: " << fNumberOfBasePairs << G4endl;
 
-	if (fRotateNucleusForEachRun)
+	if (fRotateNucleusForEachRun) // 应用随机旋转
 	{
 		// Generate random numbers to rotate the nucleus for each run
 		G4RotationMatrix* newRotation = new G4RotationMatrix();
@@ -335,10 +382,9 @@ G4VPhysicalVolume* TsNucleus::Construct()
 		newRotation->rotateZ(rotZ);
 		fEnvelopePhys->SetRotation(newRotation);
 	}
-	return fEnvelopePhys;
 }
 
-void  TsNucleus::SetBasicInfo()
+void TsNucleus::SetBasicInfo()
 {
 	G4double nVoxelX=fHilbertCurve3DRepeat; 
 	G4double nVoxelY=fHilbertCurve3DRepeat;

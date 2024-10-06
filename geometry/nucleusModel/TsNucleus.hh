@@ -27,6 +27,7 @@ public:
 	G4VPhysicalVolume* Construct();
 	void SetBasicInfo();
 	void UpdateForNewRun(G4bool force);
+	void BuildNuclues(G4String HilbertCurveFileName, int cellCount, G4RotationMatrix* rotm, G4ThreeVector* position);
 	
 private:
 	G4LogicalVolume* ConstructFiberLogicalVolume();
@@ -69,6 +70,10 @@ private:
 	G4double fFiberLength;
 	G4double fNucleusRadius ;
 	G4double fVoxelLength;
+	G4double HLX;
+	G4double HLY;
+	G4double HLZ;
+	G4int NbOfCells;
 	G4int fHilbertCurveLayer;
 	G4int fHilbertCurve3DRepeat;   
 	G4bool fCheckOverlap;
