@@ -65,6 +65,11 @@ protected:
 	G4double fProbabilityOfDamageInBase;
 	G4bool fScavengeInHistones;
 
+	// Nucleus trans
+	G4double fNucleusTransX;
+	G4double fNucleusTransY;
+	G4double fNucleusTransZ;
+
 	// For defining types of damage to be accounted for
 	G4int fNumberOfBasePairsForDSB;
 

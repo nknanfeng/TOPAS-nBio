@@ -62,6 +62,17 @@ TsScoreDNADamageSBS::TsScoreDNADamageSBS(TsParameterManager* pM, TsMaterialManag
 	// Output filename
 	fOutFileName = fPm->GetStringParameter(GetFullParmName("OutputFile"));
 
+	// Nuclues trans
+	fNucleusTransX = 0.0;
+	if (fPm->ParameterExists(GetFullParmName("NucleusTransX")))
+		fNucleusTransX = fPm->GetDoubleParameter(GetFullParmName("NucleusTransX"), "Length");
+	fNucleusTransY = 0.0;
+	if (fPm->ParameterExists(GetFullParmName("NucleusTransY")))
+		fNucleusTransY = fPm->GetDoubleParameter(GetFullParmName("NucleusTransY"), "Length");
+	fNucleusTransZ = 0.0;
+	if (fPm->ParameterExists(GetFullParmName("NucleusTransZ")))
+		fNucleusTransZ = fPm->GetDoubleParameter(GetFullParmName("NucleusTransZ"), "Length");
+
 	// Parameters for material filter
 	fBasePairDepth = 0;
 	if (fPm->ParameterExists(GetFullParmName("BasePairPositionAtGeometricHierarchy")))
@@ -504,7 +515,8 @@ G4bool TsScoreDNADamageSBS::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 	// Checks with respect to the scoring radius
 	if (fScoringRadius > 0)
 	{
-		G4bool withinScoringRadius = ((pow(pos.x(), 2)+pow(pos.y(), 2)+pow(pos.z(), 2)) < pow(fScoringRadius, 2));
+		// std::cout << " fNucleusTransX : " << fNucleusTransX << " fNucleusTransY : " << fNucleusTransY  << " fNucleusTransZ : " << fNucleusTransZ << std::endl;
+		G4bool withinScoringRadius = ((pow(pos.x()-fNucleusTransX, 2)+pow(pos.y()-fNucleusTransY, 2)+pow(pos.z()-fNucleusTransZ, 2)) < pow(fScoringRadius, 2));
 		if (!withinScoringRadius)
             return false;
 	}
